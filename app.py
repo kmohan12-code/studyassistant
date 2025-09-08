@@ -11,7 +11,9 @@ import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
-from langchain.vectorstores.faiss import FAISS
+
+# Updated FAISS import for Render / LangChain v0.2+
+from langchain_community.vectorstores import FAISS
 
 # Load API key
 load_dotenv()
@@ -21,7 +23,6 @@ genai.configure(api_key=API_KEY)
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 
 # Tell FastAPI where your HTML files are
 templates = Jinja2Templates(directory="templates")  
@@ -84,3 +85,14 @@ async def ask_question(question: str = Form(...)):
     chain = get_conversational_chain()
     response = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
     return JSONResponse({"answer": response["output_text"]})
+
+# Optional: Handle HEAD request to avoid 405 warnings from Render
+@app.head("/")
+async def root_head():
+    return {}
+
+# ---------------- Render Deployment Fix ----------------
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))  # Render assigns this automatically
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
