@@ -228,7 +228,7 @@ async function sendFileToServer(file) {
     formData.append("file", file);
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/upload_pdf/", {
+        const response = await fetch("https://studyassistant-dzq4.onrender.com/ask/", {
             method: "POST",
             body: formData
         });
@@ -344,10 +344,10 @@ async function askQuestionToServer(question) {
     formData.append("question", question);
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/ask/", {
-            method: "POST",
-            body: formData
-        });
+    const response = await fetch("https://studyassistant-dzq4.onrender.com/ask/", {
+        method: "POST",
+        body: formData
+    });
 
         const data = await response.json();
         addAIMessage(data.answer || "Sorry, I couldn't find an answer.");
@@ -408,4 +408,5 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
 
