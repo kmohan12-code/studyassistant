@@ -42,8 +42,15 @@ def get_text_chunks(text):
 
 def get_vector_store(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
+    
+    # Delete old FAISS index if it exists
+    if os.path.exists("faiss_index"):
+        import shutil
+        shutil.rmtree("faiss_index")
+    
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
+
 
 def get_conversational_chain():
     prompt_template = """
