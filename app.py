@@ -11,8 +11,6 @@ import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
-
-# Updated FAISS import for Render / LangChain v0.2+
 from langchain_community.vectorstores import FAISS
 
 # Load API key
@@ -72,6 +70,11 @@ async def upload_pdf(file: UploadFile):
 
     text = get_pdf_text(file_path)
     chunks = get_text_chunks(text)
+
+    # 🚨 Clear old FAISS index before saving the new one
+    if os.path.exists("faiss_index"):
+        shutil.rmtree("faiss_index")
+
     get_vector_store(chunks)
 
     os.remove(file_path)
