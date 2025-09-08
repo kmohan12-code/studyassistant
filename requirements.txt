@@ -1,0 +1,12 @@
+fastapi
+langchain
+langchain-community
+langchain_google_genai
+protobuf
+PyPDF2
+python-dotenv
+google-generativeai
+uvicorn
+jinja2
+python-multipart
+faiss-cpu
