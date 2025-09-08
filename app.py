@@ -13,19 +13,20 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import FAISS
 
-# Load API key
+# ---------------- Load API Key ----------------
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=API_KEY)
 
+# ---------------- FastAPI Setup ----------------
 app = FastAPI()
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Tell FastAPI where your HTML files are
 templates = Jinja2Templates(directory="templates")  
 
-# ---------------- PDF Functions ----------------
+# ---------------- Global Variables ----------------
+vector_db = None  # In-memory FAISS vector store
+
+# ---------------- PDF Processing Functions ----------------
 def get_pdf_text(pdf_path):
     text = ""
     pdf_reader = PdfReader(pdf_path)
@@ -38,11 +39,6 @@ def get_pdf_text(pdf_path):
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return splitter.split_text(text)
-
-def get_vector_store(text_chunks):
-    embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
-    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-    vector_store.save_local("faiss_index")
 
 def get_conversational_chain():
     prompt_template = """
@@ -64,29 +60,37 @@ async def serve_home(request: Request):
 
 @app.post("/upload_pdf/")
 async def upload_pdf(file: UploadFile):
+    global vector_db
+
+    # Save uploaded PDF temporarily
     file_path = f"temp_{file.filename}"
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    # Extract text and split into chunks
     text = get_pdf_text(file_path)
     chunks = get_text_chunks(text)
 
-    # 🚨 Clear old FAISS index before saving the new one
-    if os.path.exists("faiss_index"):
-        shutil.rmtree("faiss_index")
+    # Create a new in-memory FAISS vector store (overwrites previous)
+    embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
+    vector_db = FAISS.from_texts(chunks, embedding=embeddings)
 
-    get_vector_store(chunks)
-
+    # Remove temporary file
     os.remove(file_path)
+
     return JSONResponse({"message": "PDF processed successfully!"})
 
 @app.post("/ask/")
 async def ask_question(question: str = Form(...)):
-    embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = new_db.similarity_search(question)
+    global vector_db
+
+    if vector_db is None:
+        return JSONResponse({"error": "No PDF uploaded yet!"})
+
+    docs = vector_db.similarity_search(question)
     chain = get_conversational_chain()
     response = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
+
     return JSONResponse({"answer": response["output_text"]})
 
 # Optional: Handle HEAD request to avoid 405 warnings from Render
@@ -94,7 +98,7 @@ async def ask_question(question: str = Form(...)):
 async def root_head():
     return {}
 
-# ---------------- Render Deployment Fix ----------------
+# ---------------- Run Server ----------------
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))  # Render assigns this automatically
