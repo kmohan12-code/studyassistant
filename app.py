@@ -13,7 +13,6 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from langchain.vectorstores.faiss import FAISS
 
-# Load API key
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=API_KEY)
@@ -22,11 +21,8 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-
-# Tell FastAPI where your HTML files are
 templates = Jinja2Templates(directory="templates")  
 
-# ---------------- PDF Functions ----------------
 def get_pdf_text(pdf_path):
     text = ""
     pdf_reader = PdfReader(pdf_path)
@@ -66,7 +62,6 @@ def get_conversational_chain():
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
-# ---------------- Routes ----------------
 @app.get("/", response_class=HTMLResponse)
 async def serve_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -93,11 +88,9 @@ async def ask_question(question: str = Form(...)):
     response = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
     return JSONResponse({"answer": response["output_text"]})
 
-
-# ---------------- Render Deployment Fix ----------------
 if __name__ == "__main__":
     import uvicorn
     import os
 
-    port = int(os.environ.get("PORT", 8000))  # Render assigns this automatically
+    port = int(os.environ.get("PORT", 8000)) 
     uvicorn.run("app:app", host="0.0.0.0", port=port)
