@@ -119,10 +119,3 @@ Then open your browser and go to:
 
 ---
 
-## API Endpoints
-
-| Endpoint       | Method | Description                           |
-| -------------- | ------ | ------------------------------------- |
-| `/`            | GET    | Loads the main page                   |
-| `/upload_pdf/` | POST   | Uploads and processes a PDF file      |
-| `/ask/`        | POST   | Submits a question, returns an answer |
