@@ -228,7 +228,7 @@ async function sendFileToServer(file) {
     formData.append("file", file);
 
     try {
-        const response = await fetch("https://studyassistant-dzq4.onrender.com/ask/", {
+        const response = await fetch("https://studyassistant-dzq4.onrender.com/upload_pdf/", {
             method: "POST",
             body: formData
         });
@@ -408,5 +408,6 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
 
 
