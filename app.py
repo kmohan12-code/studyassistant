@@ -1,4 +1,3 @@
-
 import os
 import shutil
 from fastapi import FastAPI, UploadFile, Form, Request
@@ -24,6 +23,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")  
 
+
 def get_pdf_text(pdf_path):
     text = ""
     pdf_reader = PdfReader(pdf_path)
@@ -33,16 +33,17 @@ def get_pdf_text(pdf_path):
             text += page_text
     return text
 
+
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return splitter.split_text(text)
 
+
 def get_vector_store(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
     
-    # Delete old FAISS index if it exists
+    # Always rebuild FAISS index from the uploaded PDF
     if os.path.exists("faiss_index"):
-        import shutil
         shutil.rmtree("faiss_index")
     
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
@@ -63,9 +64,11 @@ def get_conversational_chain():
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 @app.post("/upload_pdf/")
 async def upload_pdf(file: UploadFile):
@@ -75,23 +78,28 @@ async def upload_pdf(file: UploadFile):
 
     text = get_pdf_text(file_path)
     chunks = get_text_chunks(text)
-    get_vector_store(chunks)
+    get_vector_store(chunks)   # always rebuild FAISS index from uploaded PDF
 
     os.remove(file_path)
-    return JSONResponse({"message": "PDF processed successfully!"})
+    return JSONResponse({"message": "PDF processed successfully! You can now ask questions."})
+
 
 @app.post("/ask/")
 async def ask_question(question: str = Form(...)):
     embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
+
+    # Check if FAISS index exists before loading
+    if not os.path.exists("faiss_index"):
+        return JSONResponse({"answer": "No index found. Please upload a PDF first."})
+
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(question)
     chain = get_conversational_chain()
     response = chain({"input_documents": docs, "question": question}, return_only_outputs=True)
     return JSONResponse({"answer": response["output_text"]})
 
+
 if __name__ == "__main__":
     import uvicorn
-    import os
-
     port = int(os.environ.get("PORT", 8000)) 
     uvicorn.run("app:app", host="0.0.0.0", port=port)
