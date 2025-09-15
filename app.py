@@ -18,9 +18,7 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=API_KEY)
 
 app = FastAPI()
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 templates = Jinja2Templates(directory="templates")  
 
 
@@ -37,17 +35,6 @@ def get_pdf_text(pdf_path):
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return splitter.split_text(text)
-
-
-def get_vector_store(text_chunks):
-    embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
-    
-    # Always rebuild FAISS index from the uploaded PDF
-    if os.path.exists("faiss_index"):
-        shutil.rmtree("faiss_index")
-    
-    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-    vector_store.save_local("faiss_index")
 
 
 def get_conversational_chain():
@@ -78,17 +65,33 @@ async def upload_pdf(file: UploadFile):
 
     text = get_pdf_text(file_path)
     chunks = get_text_chunks(text)
-    get_vector_store(chunks)   # always rebuild FAISS index from uploaded PDF
+
+    if chunks:
+        # Rebuild FAISS index only if new chunks exist
+        embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
+
+        if os.path.exists("faiss_index"):
+            shutil.rmtree("faiss_index")
+
+        vector_store = FAISS.from_texts(chunks, embedding=embeddings)
+        vector_store.save_local("faiss_index")
+
+        result = {"message": "PDF processed successfully! New index created."}
+    else:
+        # If no text → keep existing index if available
+        if os.path.exists("faiss_index"):
+            result = {"message": "No text found in PDF. Using existing index."}
+        else:
+            result = {"error": "No text found and no existing index available."}
 
     os.remove(file_path)
-    return JSONResponse({"message": "PDF processed successfully! You can now ask questions."})
+    return JSONResponse(result)
 
 
 @app.post("/ask/")
 async def ask_question(question: str = Form(...)):
     embeddings = GoogleGenerativeAIEmbeddings(model='models/embedding-001', async_client=False)
 
-    # Check if FAISS index exists before loading
     if not os.path.exists("faiss_index"):
         return JSONResponse({"answer": "No index found. Please upload a PDF first."})
 
